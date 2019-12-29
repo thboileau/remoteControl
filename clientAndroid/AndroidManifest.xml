@@ -1,0 +1,21 @@
+<?xml version='1.0'?>
+<manifest xmlns:a='http://schemas.android.com/apk/res/android' package='org.thboileau.remoteControl' a:versionCode='0' a:versionName='0'>
+
+    <uses-permission a:name="android.permission.BLUETOOTH" />
+    <uses-permission a:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission a:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission a:name="android.permission.READ_PHONE_STATE" />
+
+    <application a:label='Remote control for presentations'>
+        <activity a:name='org.thboileau.remoteControl.MainActivity'>
+             <intent-filter>
+                <category a:name='android.intent.category.LAUNCHER'/>
+                <action a:name='android.intent.action.MAIN'/>
+             </intent-filter>
+        </activity>
+        <activity 
+            a:name=".RemoteCommandsActivity" 
+            a:label="@string/title_activity_commands">
+        </activity>
+    </application>
+</manifest>
