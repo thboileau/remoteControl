@@ -11,46 +11,39 @@ import javax.microedition.io.StreamConnectionNotifier;
 import java.awt.*;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Optional;
+import java.util.ResourceBundle;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class BluetoothServer {
 
+    private static final ResourceBundle messages = ResourceBundle.getBundle("messages");
+    final Map<Integer, Command> commandsByCharacter = Arrays.stream(Command.values())
+            .collect(Collectors.toMap(Command::getCharacter, Function.identity()));
+
     public static void main(final String[] args) throws Exception {
-        try {
-            final LocalDevice localDevice = LocalDevice.getLocalDevice();
-            // display local device address and name
-            System.out.println("Address: " + localDevice.getBluetoothAddress());
-            System.out.println("Name: " + localDevice.getFriendlyName());
-        } catch (final BluetoothStateException bluetoothStateException) {
-            if (bluetoothStateException.getMessage().contains("not available")) {
-                System.err.println("You should install the library. Try:\n\tapt-get install libbluetooth-dev");
-            }
-            throw bluetoothStateException;
-        }
+        checkLocalDevice();
 
         final BluetoothServer bluetoothServer = new BluetoothServer();
         while (true) {
             bluetoothServer.start();
         }
-
     }
 
-    private static final int FORWARD = 'f';
-    private static final int BACKWARD = 'b';
-    private static final int STOP = 's';
-
-    private Robot robot;
-
     private void start() throws Exception {
-        robot = new Robot();
 
         final UUID uuid = new UUID("2d26618601fb47c28d9f10b8ec891363", false);
         final String connectionUrl = "btspp://localhost:" + uuid + ";name=remote control server";
 
-        try  {
+        try {
             final StreamConnectionNotifier streamConnNotifier = (StreamConnectionNotifier) Connector.open(connectionUrl);
             System.out.println("Server is started.");
-            
+
             // Connection opened with a client
             final StreamConnection connection = streamConnNotifier.acceptAndOpen();
 
@@ -62,52 +55,77 @@ public class BluetoothServer {
 
         } catch (final ServiceRegistrationException serviceRegistrationException) {
             if (serviceRegistrationException.getMessage().contains("Can not open SDP session. [2] No such file or directory")) {
-                System.err.println("Run this command:\n\tcat /etc/systemd/system/bluetooth.target.wants/bluetooth.service | grep ExecStart");
-                System.err.println("It should be as follow (usually add the -C option):\n\tExecStart=/usr/lib/bluetooth/bluetoothd -C");
-                System.err.println("Once done, run the two following commands:");
-                System.err.println("\tsudo systemctl daemon-reload");
-                System.err.println("\tsudo systemctl restart bluetooth");
+                System.err.println(messages.getString("ERROR_CANT_OPEN_SDP_SESSION_NO_SUCH_FILE"));
             } else if (serviceRegistrationException.getMessage().contains("Can not open SDP session. [13] Permission denied")) {
-                System.err.println("Run this command:\n\tsudo chmod 777 /var/run/sdp");
+                System.err.println(messages.getString("ERROR_CANT_OPEN_SDP_SESSION_PERMISSION_DENIED"));
             }
             throw serviceRegistrationException;
         }
     }
 
-    private void readRemoteClientCommands(StreamConnection connection) {
-        final RemoteDevice dev = RemoteDevice.getRemoteDevice(connection);
-        System.out.println("Remote device address: " + dev.getBluetoothAddress());
-        System.out.println("Remote device name: " + dev.getFriendlyName(true));
+    private void readRemoteClientCommands(StreamConnection connection) throws Exception {
+        Robot robot = new Robot();
+
+        final RemoteDevice remoteDevice = RemoteDevice.getRemoteDevice(connection);
+        System.out.println(String.format("Connected to remote device:\n\t%s\n\t%s", remoteDevice.getBluetoothAddress(), remoteDevice.getFriendlyName(true)));
 
         final InputStream inStream = connection.openInputStream();
-        boolean loop = true;
-        while (loop) {
+        ConversationStatus loop = ConversationStatus.CONTINUE;
+        while (ConversationStatus.CONTINUE == loop) {
             final int read = inStream.read();
-            switch (read) {
-                case FORWARD:
-                    System.out.println("FORWARD");
-                    robot.mousePress(InputEvent.BUTTON1_MASK);
-                    robot.mouseRelease(InputEvent.BUTTON1_MASK);
-                    break;
-                case BACKWARD:
-                    System.out.println("BACKWARD");
-                    robot.keyPress(KeyEvent.VK_UP);
-                    robot.keyRelease(KeyEvent.VK_UP);
-                    break;
-                case STOP:
-                    System.out.println("STOP");
-                    robot.keyPress(KeyEvent.VK_ESCAPE);
-                    robot.keyRelease(KeyEvent.VK_ESCAPE);
-                    loop = false;
-                    break;
-                default:
-                    System.out.println("IGNORED");
-                    break;
+            loop = Optional.ofNullable(commandsByCharacter.get(read))
+                    .map(command -> command.runCommand(robot))
+                    .orElse(ConversationStatus.CONTINUE);
+        }
+    }
+
+    private static void checkLocalDevice() throws BluetoothStateException {
+        try {
+            final LocalDevice localDevice = LocalDevice.getLocalDevice();
+            System.out.println(String.format("Local device: %s (%s)", localDevice.getFriendlyName(), localDevice.getBluetoothAddress()));
+        } catch (final BluetoothStateException bluetoothStateException) {
+            if (bluetoothStateException.getMessage().contains("not available")) {
+                System.err.println(messages.getString("ERROR_UNAVAILABLE_DEVICE"));
             }
-            try {
-                Thread.sleep(1000);
-            } catch (final InterruptedException e) {
-            }
+            throw bluetoothStateException;
+        }
+    }
+
+    private enum ConversationStatus {
+        CONTINUE, STOP
+    }
+
+    private enum Command {
+        FORWARD('f', robot -> {
+            robot.mousePress(InputEvent.BUTTON1_MASK);
+            robot.mouseRelease(InputEvent.BUTTON1_MASK);
+            return ConversationStatus.CONTINUE;
+        }),
+        BACKWARD('b', robot -> {
+            robot.keyPress(KeyEvent.VK_UP);
+            robot.keyRelease(KeyEvent.VK_UP);
+            return ConversationStatus.CONTINUE;
+        }),
+        STOP('s', robot -> {
+            robot.keyPress(KeyEvent.VK_ESCAPE);
+            robot.keyRelease(KeyEvent.VK_ESCAPE);
+            return ConversationStatus.STOP;
+        });
+
+        private final int character;
+        private final Function<Robot, ConversationStatus> command;
+
+        Command(final int character, final Function<Robot, ConversationStatus> command) {
+            this.character = character;
+            this.command = command;
+        }
+
+        public ConversationStatus runCommand(Robot robot) {
+            return command.apply(robot);
+        }
+
+        public int getCharacter() {
+            return character;
         }
     }
 
