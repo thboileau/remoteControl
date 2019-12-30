@@ -2,34 +2,34 @@
 
 ## Goal
 
- * Pilot presentations from my Android phone.
- * The remote control is connected without cable
- * The remote control allows to move forward, backward or stop the presentation
+* Pilot presentations from my Android phone.
+* The remote control is connected without cable
+* The remote control allows to move forward, backward or stop the presentation
 
 ## Solution
 
- * leverage bluetooth connection
- * the bluetooth client is my android phone since it initiates the communication
- * the bluetooth server is the PC that hosts the presentation
+* leverage bluetooth connection
+* the bluetooth client is my android phone since it initiates the communication
+* the bluetooth server is the PC that hosts the presentation
 
 The Bluetooth client part is an Android application.
 
-The Bluetooth server is develop in Java language (structured as a Maven project) and leverages the (bluecove library)[http://bluecove.org/].
+The Bluetooth server is develop in Java language (structured as a Maven project) and leverages the [bluecove library](http://bluecove.org/).
 
 ## Build Android app
 
 ### installation of the development environment
 
 #### Install the JDK 8
+
 ```
 sudo apt-get install openjdk-8-jdk-headless
 ```
 
 #### Install the Android SDK manager
 
-(go to)[https://developer.android.com/studio/index.html#downloads]
-
-and extract the SDK in `/opt/android-sdk/`.
+[Sownload the SDK manager](https://developer.android.com/studio/index.html#downloads)
+and extract the zip in `/opt/android-sdk/`.
 
 Check that the `/opt/android-sdk/tools/bin/sdkmanager` directory exists.
 
@@ -84,7 +84,6 @@ keytool -genkeypair -validity 365 -keystore mykey.keystore -keyalg RSA -keysize 
 ### build steps
 
 ```
-
 # build
 
 cd $ANDROID_BUILD_TOOLS_DIR
@@ -121,6 +120,7 @@ adb install -r $PROJ/bin/remote.apk
 ```
 
 ### Run from the PC
+
 ```
 adb shell am start -n org.thboileau.remoteControl/.MainActivity
 ```
